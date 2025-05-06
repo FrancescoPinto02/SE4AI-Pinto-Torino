@@ -1,10 +1,11 @@
-name: Lint & CI
+name: CI Pipeline
 
 on: [push, pull_request]
 
 jobs:
-  lint:
+  ci:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -17,8 +18,17 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install ruff
+          pip install -r requirements.txt
+          pip install ruff dvc
 
-      - name: Run ruff linter
+      - name: Run linter (ruff)
         run: |
           ruff check src/* --output-format=github
+
+      - name: Check Python compile
+        run: |
+          find src/ -name "*.py" | xargs -n 1 python -m py_compile
+
+      - name: Check DVC pipeline status
+        run: |
+          dvc status
