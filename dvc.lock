@@ -1,0 +1,22 @@
+schema: '2.0'
+stages:
+  data_ingestion:
+    cmd: python src/data/data_ingestion.py
+    deps:
+    - path: .env
+      hash: md5
+      md5: 9deee3e4ef7d3c6ff9a448ebf1898e7d
+      size: 136
+    - path: src/data/data_ingestion.py
+      hash: md5
+      md5: 7a2506c9bdee16037f700ab531735619
+      size: 1052
+    outs:
+    - path: data/raw/games.csv
+      hash: md5
+      md5: ceab692d18de01dc8bb911b59c5e10b2
+      size: 7297388
+    - path: data/raw/reviews.csv
+      hash: md5
+      md5: cd33c0652334825d3d2133668d240f0b
+      size: 115751174
