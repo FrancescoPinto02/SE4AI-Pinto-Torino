@@ -1,0 +1,3 @@
+['remote "origin"']
+    url = s3://dvc
+    endpointurl = https://dagshub.com/FrancescoPinto02/SE4AI-Pinto-Torino.s3
