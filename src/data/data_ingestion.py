@@ -1,7 +1,7 @@
 import os
+import pandas as pd
 from dotenv import load_dotenv
 from pymongo import MongoClient
-import pandas as pd
 
 #TODO: Utilizzare l`API Gateway quando i microservizi saranno pronti
 

@@ -1,0 +1,37 @@
+[tool.ruff]
+# Massima lunghezza di linea
+line-length = 100
+
+# Codici di linting da applicare
+# E: pycodestyle
+# F: pyflakes
+# I: isort
+# D: pydocstyle (docstring rules)
+# N: pep8-naming (nome funzioni, classi, variabili)
+lint.select = ["E", "F", "I", "D", "N"]
+
+# Ignora alcune regole fastidiose
+# E501: line too long
+# D100-D103: docstring obbligatorie per moduli/classi/funzioni pubbliche
+lint.ignore = ["E501", "D100", "D101", "D102", "D103", "D104", "D203", "D213"]
+
+# Esclude cartelle non rilevanti
+exclude = [
+    ".git",
+    ".venv",
+    "data",
+    "models",
+    "mlruns",
+    "__pycache__",
+    "notebooks",
+    ".dvc"
+]
+
+# Ordinamento degli import
+[tool.ruff.lint.isort]
+known-third-party = ["pandas", "numpy", "sklearn", "dotenv", "pymongo"]
+combine-as-imports = true
+
+# Utilizzo di Doppi apici per stringhe
+[tool.ruff.format]
+quote-style = "double"
