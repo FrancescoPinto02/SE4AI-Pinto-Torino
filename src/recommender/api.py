@@ -1,47 +1,95 @@
 import os
+from typing import List
 
 import mlflow
 import pandas as pd
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
+from pymongo import MongoClient
+from bson import ObjectId
 
-# Setup
+# --- Load environment ---
 load_dotenv()
 mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI"))
 mlflow.set_experiment("svd_recommender")
 
-app = FastAPI(title="Game Recommender API")
-
-# Config
+# --- Config ---
 MODEL_NAME = "SVD-Recommender"
 MODEL_ALIAS = "champion"
-DATA_PATH = "data/processed/surpriseSVD/reviews_clean.csv"
-GAMES_PATH = "data/raw/games.csv"
 
-# Cache model & data
+# MongoDB credentials
+MONGO_USER = os.getenv("MONGO_USER")
+MONGO_PASSWORD = os.getenv("MONGO_PASSWORD")
+MONGO_CLUSTER = os.getenv("MONGO_CLUSTER")
+MONGO_DB = os.getenv("MONGO_DB")
+MONGO_AUTH_DB = os.getenv("MONGO_AUTH_DB")
+MONGO_COLLECTION_REVIEWS = "reviews"
+
+# --- FastAPI app ---
+app = FastAPI(title="Game Recommender API")
+
+# --- Load model from MLflow ---
 model = mlflow.sklearn.load_model(f"models:/{MODEL_NAME}@{MODEL_ALIAS}")
-reviews_df = pd.read_csv(DATA_PATH)
-games_df = pd.read_csv(GAMES_PATH)
+
+
+def get_mongo_reviews(user_id: str) -> pd.DataFrame:
+    """Estrae tutte le recensioni dell'utente da MongoDB"""
+    uri = (
+        f"mongodb+srv://{MONGO_USER}:{MONGO_PASSWORD}@{MONGO_CLUSTER}/"
+        f"{MONGO_DB}?authSource={MONGO_AUTH_DB}&retryWrites=true&w=majority"
+    )
+    client = MongoClient(uri)
+    db = client[MONGO_DB]
+    collection = db[MONGO_COLLECTION_REVIEWS]
+
+    try:
+        query = {"userId": ObjectId(user_id)}
+    except Exception:
+        raise HTTPException(status_code=400, detail="Formato user_id non valido")
+
+    results = list(collection.find(query))
+    return pd.DataFrame(results)
+
+
+def get_all_game_ids() -> List[str]:
+    """Restituisce tutti gli ID dei giochi presenti nel catalogo come stringhe"""
+    uri = (
+        f"mongodb+srv://{MONGO_USER}:{MONGO_PASSWORD}@{MONGO_CLUSTER}/"
+        f"{MONGO_DB}?authSource={MONGO_AUTH_DB}&retryWrites=true&w=majority"
+    )
+    client = MongoClient(uri)
+    db = client[MONGO_DB]
+    games = db["games"].find({}, {"_id": 1})
+    return [str(g["_id"]) for g in games]
+
 
 @app.get("/recommendations/{user_id}")
 def get_recommendations(user_id: str, n: int = 10):
-    if user_id not in reviews_df["userId"].unique():
-        raise HTTPException(status_code=404, detail="User ID non trovato")
+    print(f"🔍 Richiesta per user_id: {user_id}")
 
-    all_items = reviews_df["gameId"].unique()
-    reviewed = reviews_df[reviews_df["userId"] == user_id]["gameId"].unique()
-    to_predict = [iid for iid in all_items if iid not in reviewed]
+    reviews_df = get_mongo_reviews(user_id)
+    print(f"📄 Recensioni trovate: {len(reviews_df)}")
+
+    if reviews_df.empty:
+        raise HTTPException(status_code=404, detail="User ID non trovato o senza recensioni")
+
+    # Converti gameId recensiti in stringhe per confronto coerente
+    reviewed_game_ids = reviews_df["gameId"].apply(str).unique()
+    all_game_ids = get_all_game_ids()
+    print(f"📚 Giochi totali nel catalogo: {len(all_game_ids)}")
+
+    to_predict = [gid for gid in all_game_ids if gid not in reviewed_game_ids]
+    print(f"🎯 Giochi da raccomandare: {len(to_predict)}")
 
     predictions = [
-        (iid, model.predict(user_id, iid).est)
-        for iid in to_predict
+        (gid, model.predict(user_id, gid).est)
+        for gid in to_predict
     ]
 
     top_n = sorted(predictions, key=lambda x: x[1], reverse=True)[:n]
-    result = pd.DataFrame(top_n, columns=["gameId", "score"])
-    result = result.merge(games_df[["_id", "title"]], left_on="gameId", right_on="_id", how="left")
+    return [{"gameId": gid, "predicted_score": round(float(score), 2)} for gid, score in top_n]
 
-    return [
-        {"title": row["title"], "predicted_score": round(row["score"], 2)}
-        for _, row in result.iterrows()
-    ]
+
+
+
+
