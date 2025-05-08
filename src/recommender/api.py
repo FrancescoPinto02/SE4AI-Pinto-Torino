@@ -3,10 +3,10 @@ from typing import List
 
 import mlflow
 import pandas as pd
+from bson import ObjectId
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from pymongo import MongoClient
-from bson import ObjectId
 
 # --- Load environment ---
 load_dotenv()
@@ -33,7 +33,6 @@ model = mlflow.sklearn.load_model(f"models:/{MODEL_NAME}@{MODEL_ALIAS}")
 
 
 def get_mongo_reviews(user_id: str) -> pd.DataFrame:
-    """Estrae tutte le recensioni dell'utente da MongoDB"""
     uri = (
         f"mongodb+srv://{MONGO_USER}:{MONGO_PASSWORD}@{MONGO_CLUSTER}/"
         f"{MONGO_DB}?authSource={MONGO_AUTH_DB}&retryWrites=true&w=majority"
@@ -52,7 +51,6 @@ def get_mongo_reviews(user_id: str) -> pd.DataFrame:
 
 
 def get_all_game_ids() -> List[str]:
-    """Restituisce tutti gli ID dei giochi presenti nel catalogo come stringhe"""
     uri = (
         f"mongodb+srv://{MONGO_USER}:{MONGO_PASSWORD}@{MONGO_CLUSTER}/"
         f"{MONGO_DB}?authSource={MONGO_AUTH_DB}&retryWrites=true&w=majority"
