@@ -1,4 +1,3 @@
-# Dockerfile
 FROM python:3.10-slim
 
 # Installa build tools per compilare scikit-surprise
@@ -9,19 +8,28 @@ RUN apt-get update && apt-get install -y \
     libpython3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Crea working directory
 WORKDIR /app
 
 # Copia requirements e installa dipendenze
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copia il codice e i dati
+# Installazione DVC con supporto S3
+RUN pip install --no-cache-dir dvc[s3]
+
+# Copia i file di configurazione DVC e il codice
+COPY .dvc/ .dvc/
+COPY dvc.yaml dvc.yaml
+COPY dvc.lock dvc.lock
 COPY src/ ./src/
-COPY data/processed/ data/processed/
-COPY data/raw/ data/raw/
+
+# Imposta variabili d'ambiente per S3 (legate a GitHub Secrets in CD)
+ENV AWS_ACCESS_KEY_ID=${DVC_S3_ACCESS_KEY_ID}
+ENV AWS_SECRET_ACCESS_KEY=${DVC_S3_SECRET_ACCESS_KEY}
+
+# Pull dei dati dal remote
+RUN dvc pull -r origin
 
 EXPOSE 8000
 
-# Avvio FastAPI
 CMD ["uvicorn", "src.recommender.api:app", "--host", "0.0.0.0", "--port", "8000"]

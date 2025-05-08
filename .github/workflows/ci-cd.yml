@@ -39,7 +39,7 @@ jobs:
 
   docker:
     runs-on: ubuntu-latest
-    needs: ci  # esegue solo se il job "ci" va a buon fine
+    needs: ci
     if: github.ref == 'refs/heads/main'
 
     steps:
@@ -61,3 +61,6 @@ jobs:
           context: .
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/se4ai-recommender:latest
+        env:
+          DVC_S3_ACCESS_KEY_ID: ${{ secrets.DVC_S3_ACCESS_KEY_ID }}
+          DVC_S3_SECRET_ACCESS_KEY: ${{ secrets.DVC_S3_SECRET_ACCESS_KEY }}
