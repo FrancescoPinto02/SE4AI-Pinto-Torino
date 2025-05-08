@@ -18,7 +18,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copia il codice e i dati
 COPY src/ ./src/
-COPY .env .env
 COPY data/processed/ data/processed/
 COPY data/raw/ data/raw/
 
