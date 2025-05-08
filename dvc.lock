@@ -53,8 +53,8 @@ stages:
       size: 115913820
     - path: src/data/surpriseSVD/preprocess_surprise_SVD.py
       hash: md5
-      md5: ef524a4867fa09764fb6a42b2ee7390c
-      size: 613
+      md5: 22e45bf17e2b8eeacfed8c6c2d12eb56
+      size: 615
     outs:
     - path: data/processed/surpriseSVD/reviews_clean.csv
       hash: md5
@@ -69,8 +69,8 @@ stages:
       size: 7663856
     - path: src/models/surpriseSVD/train_surprise_SVD.py
       hash: md5
-      md5: 9bfba37d276b652cd49ca249fba580b0
-      size: 2690
+      md5: 6b95a60a3b6da6168dd86b19fb04c7da
+      size: 3030
     outs:
     - path: models/svd_best_params.txt
       hash: md5
@@ -78,5 +78,5 @@ stages:
       size: 52
     - path: models/svd_model.pkl
       hash: md5
-      md5: a63f3fd5dff79a6b7bc01e43841e2934
+      md5: d57d2558cccf4c340d6d182b1b041df3
       size: 14240051

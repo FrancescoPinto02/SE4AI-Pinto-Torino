@@ -67,14 +67,15 @@ def main():
                 "mae": mae
             })
 
-            print(f"🔍 Params: {params} | RMSE: {rmse:.4f} | MAE: {mae:.4f}")
-
             if rmse < best_score:
                 best_score = rmse
                 best_params = params
                 best_model = model
+                best_run_id = mlflow.active_run().info.run_id  # salva la run id migliore
 
-    # Salvataggio del miglior modello
+            print(f"🔍 Params: {params} | RMSE: {rmse:.4f} | MAE: {mae:.4f}")
+
+    # Salvataggio locale
     os.makedirs("models", exist_ok=True)
     joblib.dump(best_model, MODEL_OUTPUT_PATH)
     with open(PARAM_OUTPUT_PATH, "w") as f:
@@ -85,6 +86,14 @@ def main():
     print(f"RMSE: {best_score:.4f}")
     print(f"✅ Modello salvato in {MODEL_OUTPUT_PATH}")
 
+    # 🔐 REGISTRAZIONE del miglior modello su MLflow/DagsHub
+    mlflow.start_run(run_id=best_run_id)
+    mlflow.sklearn.log_model(
+        sk_model=best_model,
+        artifact_path="svd_model",
+        registered_model_name="SVD-Recommender"
+    )
+    mlflow.end_run()
+
 if __name__ == "__main__":
     main()
-
