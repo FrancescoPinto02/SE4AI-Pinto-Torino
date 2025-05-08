@@ -7,6 +7,8 @@ from bson import ObjectId
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from pymongo import MongoClient
+from fastapi.middleware.cors import CORSMiddleware
+
 
 # --- Load environment ---
 load_dotenv()
@@ -26,7 +28,22 @@ MONGO_AUTH_DB = os.getenv("MONGO_AUTH_DB")
 MONGO_COLLECTION_REVIEWS = "reviews"
 
 # --- FastAPI app ---
+# --- FastAPI app ---
 app = FastAPI(title="Game Recommender API")
+
+# CORS settings
+origins = [
+    "http://localhost:5173",   # React development server
+    "http://127.0.0.1:5173"    # Alternative localhost format
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,  # Permetti solo queste origini
+    allow_credentials=True,
+    allow_methods=["*"],    # Permetti tutti i metodi (GET, POST, PUT, DELETE, ecc.)
+    allow_headers=["*"],    # Permetti tutti gli header
+)
 
 # --- Load model from MLflow ---
 model = mlflow.sklearn.load_model(f"models:/{MODEL_NAME}@{MODEL_ALIAS}")
