@@ -1,9 +1,10 @@
 import ast
 import os
-import pandas as pd
+
 import numpy as np
+import pandas as pd
 from scipy import sparse
-from sklearn.preprocessing import MultiLabelBinarizer, LabelEncoder
+from sklearn.preprocessing import LabelEncoder, MultiLabelBinarizer
 
 RAW_REVIEWS_PATH = "data/raw/reviews.csv"
 RAW_GAMES_PATH = "data/raw/games.csv"
