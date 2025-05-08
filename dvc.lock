@@ -9,14 +9,38 @@ stages:
       size: 136
     - path: src/data/data_ingestion.py
       hash: md5
-      md5: 7a2506c9bdee16037f700ab531735619
-      size: 1052
+      md5: d50ee4c7d5d81e6f7e9cbd54a0f9c995
+      size: 1126
     outs:
     - path: data/raw/games.csv
       hash: md5
-      md5: ceab692d18de01dc8bb911b59c5e10b2
+      md5: 0ed65f5388c5f2db26074a03830c0a8b
       size: 7297388
     - path: data/raw/reviews.csv
       hash: md5
-      md5: cd33c0652334825d3d2133668d240f0b
-      size: 115751174
+      md5: 7ae6fb3ab6385bf5db522bbd4878f670
+      size: 115913820
+  preprocess_lightFM:
+    cmd: python src/data/lightfm/preprocess_lightfm.py
+    deps:
+    - path: data/raw/games.csv
+      hash: md5
+      md5: 0ed65f5388c5f2db26074a03830c0a8b
+      size: 7297388
+    - path: data/raw/reviews.csv
+      hash: md5
+      md5: 7ae6fb3ab6385bf5db522bbd4878f670
+      size: 115913820
+    - path: src/data/lightfm/preprocess_lightfm.py
+      hash: md5
+      md5: f077086db18acbdbd6f4ad13dfa74b9d
+      size: 3434
+    outs:
+    - path: data/processed/lightfm/interactions.npz
+      hash: md5
+      md5: c60a9578d8c81b84460b29f77d26412d
+      size: 491828
+    - path: data/processed/lightfm/item_features.npz
+      hash: md5
+      md5: 71218784655567d825b626b9c7fdc7ce
+      size: 21183

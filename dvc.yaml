@@ -7,3 +7,12 @@ stages:
     outs:
     - data/raw/games.csv
     - data/raw/reviews.csv
+  preprocess_lightFM:
+    cmd: python src/data/lightfm/preprocess_lightfm.py
+    deps:
+    - data/raw/games.csv
+    - data/raw/reviews.csv
+    - src/data/lightfm/preprocess_lightfm.py
+    outs:
+    - data/processed/lightfm/interactions.npz
+    - data/processed/lightfm/item_features.npz
