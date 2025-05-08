@@ -8,10 +8,9 @@ OUTPUT_PATH = "data/processed/surpriseSVD/reviews_clean.csv"
 def load_and_clean():
     df = pd.read_csv(RAW_PATH)
 
-    # Rimuove righe con valori nulli o punteggi non validi
+    # Mantieni tutti i punteggi, inclusi gli 0
     df = df[["userId", "gameId", "score"]]
-    df = df.dropna()
-    df = df[df["score"] > 0]
+    df = df.dropna(subset=["userId", "gameId", "score"])
 
     return df
 
@@ -23,3 +22,4 @@ def save(df):
 if __name__ == "__main__":
     df_clean = load_and_clean()
     save(df_clean)
+
