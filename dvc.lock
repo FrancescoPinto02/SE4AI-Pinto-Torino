@@ -5,8 +5,8 @@ stages:
     deps:
     - path: .env
       hash: md5
-      md5: 9deee3e4ef7d3c6ff9a448ebf1898e7d
-      size: 136
+      md5: 0c6167a40fe9e3ed8f87c6b863893a74
+      size: 332
     - path: src/data/data_ingestion.py
       hash: md5
       md5: d50ee4c7d5d81e6f7e9cbd54a0f9c995
@@ -33,8 +33,8 @@ stages:
       size: 115913820
     - path: src/data/lightfm/preprocess_lightfm.py
       hash: md5
-      md5: f077086db18acbdbd6f4ad13dfa74b9d
-      size: 3434
+      md5: d9c154cfe26ded4bbde4404d61203985
+      size: 3436
     outs:
     - path: data/processed/lightfm/interactions.npz
       hash: md5
@@ -44,3 +44,39 @@ stages:
       hash: md5
       md5: 71218784655567d825b626b9c7fdc7ce
       size: 21183
+  preprocess_surprise_SVD:
+    cmd: python src/data/surpriseSVD/preprocess_surprise_SVD.py
+    deps:
+    - path: data/raw/reviews.csv
+      hash: md5
+      md5: 7ae6fb3ab6385bf5db522bbd4878f670
+      size: 115913820
+    - path: src/data/surpriseSVD/preprocess_surprise_SVD.py
+      hash: md5
+      md5: ef524a4867fa09764fb6a42b2ee7390c
+      size: 613
+    outs:
+    - path: data/processed/surpriseSVD/reviews_clean.csv
+      hash: md5
+      md5: d9a074367ef98a78289e036c66fc0e29
+      size: 7663856
+  train_surprise_SVD:
+    cmd: python src/models/surpriseSVD/train_surprise_SVD.py
+    deps:
+    - path: data/processed/surpriseSVD/reviews_clean.csv
+      hash: md5
+      md5: d9a074367ef98a78289e036c66fc0e29
+      size: 7663856
+    - path: src/models/surpriseSVD/train_surprise_SVD.py
+      hash: md5
+      md5: 9bfba37d276b652cd49ca249fba580b0
+      size: 2690
+    outs:
+    - path: models/svd_best_params.txt
+      hash: md5
+      md5: 2bb5c16120c417195d8c87c2700ff88c
+      size: 52
+    - path: models/svd_model.pkl
+      hash: md5
+      md5: a63f3fd5dff79a6b7bc01e43841e2934
+      size: 14240051

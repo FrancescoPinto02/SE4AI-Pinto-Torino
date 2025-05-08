@@ -16,3 +16,18 @@ stages:
     outs:
     - data/processed/lightfm/interactions.npz
     - data/processed/lightfm/item_features.npz
+  preprocess_surprise_SVD:
+    cmd: python src/data/surpriseSVD/preprocess_surprise_SVD.py
+    deps:
+    - data/raw/reviews.csv
+    - src/data/surpriseSVD/preprocess_surprise_SVD.py
+    outs:
+    - data/processed/surpriseSVD/reviews_clean.csv
+  train_surprise_SVD:
+    cmd: python src/models/surpriseSVD/train_surprise_SVD.py
+    deps:
+    - data/processed/surpriseSVD/reviews_clean.csv
+    - src/models/surpriseSVD/train_surprise_SVD.py
+    outs:
+    - models/svd_best_params.txt
+    - models/svd_model.pkl
