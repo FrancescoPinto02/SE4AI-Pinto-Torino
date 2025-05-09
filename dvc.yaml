@@ -1,33 +1,30 @@
 stages:
   data_ingestion:
-    cmd: python src/data/data_ingestion.py
+    cmd: python src/data_ingestion.py
     deps:
     - .env
-    - src/data/data_ingestion.py
+    - src/data_ingestion.py
     outs:
-    - data/raw/games.csv
     - data/raw/reviews.csv
-  preprocess_lightFM:
-    cmd: python src/data/lightfm/preprocess_lightfm.py
-    deps:
-    - data/raw/games.csv
-    - data/raw/reviews.csv
-    - src/data/lightfm/preprocess_lightfm.py
-    outs:
-    - data/processed/lightfm/interactions.npz
-    - data/processed/lightfm/item_features.npz
-  preprocess_surprise_SVD:
-    cmd: python src/data/surpriseSVD/preprocess_surprise_SVD.py
+  preprocess_data_SVD:
+    cmd: python src/SVD/preprocess.py
     deps:
     - data/raw/reviews.csv
-    - src/data/surpriseSVD/preprocess_surprise_SVD.py
+    - src/SVD/preprocess.py
     outs:
-    - data/processed/surpriseSVD/reviews_clean.csv
-  train_surprise_SVD:
-    cmd: python src/models/surpriseSVD/train_surprise_SVD.py
+    - data/processed/SVD/ratings.csv
+  train_SVD:
+    cmd: python src/SVD/train.py
     deps:
-    - data/processed/surpriseSVD/reviews_clean.csv
-    - src/models/surpriseSVD/train_surprise_SVD.py
+    - config/params.yaml
+    - data/processed/SVD/ratings.csv
+    - src/SVD/train.py
     outs:
-    - models/svd_best_params.txt
     - models/svd_model.pkl
+  tune_SVD:
+    cmd: python src/SVD/tune.py
+    deps:
+    - data/processed/SVD/ratings.csv
+    - src/SVD/tune.py
+    outs:
+    - config/params.yaml

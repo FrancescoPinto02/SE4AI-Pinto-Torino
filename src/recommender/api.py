@@ -6,9 +6,8 @@ import pandas as pd
 from bson import ObjectId
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
-from pymongo import MongoClient
 from fastapi.middleware.cors import CORSMiddleware
-
+from pymongo import MongoClient
 
 # --- Load environment ---
 load_dotenv()
