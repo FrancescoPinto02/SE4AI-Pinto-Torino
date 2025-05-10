@@ -6,6 +6,8 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from mlflow.tracking import MlflowClient
+from prometheus_client import Counter, Gauge
+from prometheus_fastapi_instrumentator import Instrumentator
 
 # --- Load environment ---
 load_dotenv()
@@ -35,6 +37,10 @@ print(f"✅ Dataset caricato: {ratings_df.shape[0]} righe")
 
 # --- FastAPI app ---
 app = FastAPI(title="Game Recommender API")
+instrumentator = Instrumentator().instrument(app).expose(app)
+PREDICTED_SCORE_AVG = Gauge("predicted_score_avg", "Media dei punteggi previsti per una richiesta")
+RECOMMENDATIONS_SENT = Counter("recommendations_total", "Totale raccomandazioni mostrate")
+RECOMMENDATION_CLICKS = Counter("recommendation_clicks_total", "Click su raccomandazioni mostrate")
 
 # CORS settings
 origins = [
@@ -72,4 +78,16 @@ def get_recommendations(user_id: str, n: int = 10):
     ]
 
     top_n = sorted(predictions, key=lambda x: x[1], reverse=True)[:n]
+    if top_n:
+        avg_score = sum([score for _, score in top_n]) / len(top_n)
+        PREDICTED_SCORE_AVG.set(avg_score)
+        RECOMMENDATIONS_SENT.inc(n)
     return [{"gameId": gid, "predicted_score": round(float(score), 2)} for gid, score in top_n]
+
+
+@app.get("/feedback")
+def receive_feedback():
+    print("📥 Feedback ricevuto")
+    RECOMMENDATION_CLICKS.inc()
+
+    return {"status": "ok", "message": "Feedback ricevuto (simulato)"}
