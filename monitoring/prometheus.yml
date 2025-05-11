@@ -4,4 +4,8 @@ global:
 scrape_configs:
   - job_name: 'fastapi'
     static_configs:
-      - targets: ['host.docker.internal:8000']  # O 'localhost:8000' se non sei in container
+      - targets: ['host.docker.internal:8000']
+
+
+# QUESTO FILE È DA USARE AVVIANDO IN LOCALE IL PROGETTO
+# ED AVVIANDO PPROMETHEUS TRAMITE DOCKER

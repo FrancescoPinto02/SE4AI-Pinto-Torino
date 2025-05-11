@@ -1,13 +1,12 @@
-import os
 import mlflow
 import pandas as pd
+from cachetools import TTLCache
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from mlflow.tracking import MlflowClient
 from prometheus_client import Counter, Gauge
 from prometheus_fastapi_instrumentator import Instrumentator
-from cachetools import TTLCache
 
 from src.log_config import setup_logger
 
