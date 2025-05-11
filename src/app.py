@@ -2,7 +2,7 @@ import os
 import mlflow
 import pandas as pd
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from mlflow.tracking import MlflowClient
 from prometheus_client import Counter, Gauge
@@ -14,7 +14,7 @@ from src.log_config import setup_logger
 # Configurazione e Inizializzazione
 load_dotenv()
 
-TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
+TRACKING_URI = "https://dagshub.com/FrancescoPinto02/SE4AI-Pinto-Torino.mlflow"
 EXPERIMENT_NAME = "svd_recommender"
 MODEL_NAME = "SVD-Recommender"
 MODEL_ALIAS = "champion"
@@ -28,15 +28,11 @@ mlflow.set_experiment(EXPERIMENT_NAME)
 logger = setup_logger()
 logger.info("Avvio applicazione Game Recommender API")
 
-# -------------------------------
-# 📦 Caricamento Modello
-# -------------------------------
+# Caricamento Modello
 logger.info(f"Caricamento modello '{MODEL_NAME}' con alias '{MODEL_ALIAS}' da MLflow")
 model = mlflow.sklearn.load_model(f"models:/{MODEL_NAME}@{MODEL_ALIAS}")
 
-# -------------------------------
-# 📂 Caricamento Dataset
-# -------------------------------
+# Caricamento Dataset
 def load_training_data_from_registry(model_name: str, alias: str) -> pd.DataFrame:
     logger.info("Download dataset di training da MLflow registry")
     client = MlflowClient()
@@ -51,9 +47,7 @@ def load_training_data_from_registry(model_name: str, alias: str) -> pd.DataFram
 
 ratings_df = load_training_data_from_registry(MODEL_NAME, MODEL_ALIAS)
 
-# -------------------------------
-# ⭐ Calcolo fallback (popolarità ponderata IMDb-style)
-# -------------------------------
+# Calcolo Items per Fallback
 logger.info("Calcolo fallback ponderato basato su popolarità e qualità")
 C = ratings_df["rating"].mean()
 m = 20
@@ -74,9 +68,7 @@ popular_fallback_games = [
     for _, row in game_stats.sort_values(by="WR", ascending=False).iterrows()
 ]
 
-# -------------------------------
-# 🚀 FastAPI App Setup
-# -------------------------------
+# FastAPI Setup
 app = FastAPI(title="Game Recommender API")
 
 # Prometheus Metrics
@@ -97,14 +89,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# -------------------------------
-# 🧠 Cache raccomandazioni
-# -------------------------------
+# Cache Raccomandazioni
 recommendation_cache = TTLCache(maxsize=1000, ttl=600)
 
-# -------------------------------
-# 📡 Endpoint Raccomandazioni
-# -------------------------------
+# Endpoint Raccomandazioni
 @app.get("/recommendations/{user_id}")
 def get_recommendations(user_id: str, n: int = 10):
     logger.info(f"Richiesta raccomandazioni | user_id={user_id}, top={n}")
@@ -151,14 +139,16 @@ def get_recommendations(user_id: str, n: int = 10):
     logger.info(f"Raccomandazioni salvate in cache per user_id={user_id}")
     return response
 
-# -------------------------------
-# Endpoint Feedback (simulato)
-# -------------------------------
-@app.get("/feedback")
-def receive_feedback():
-    logger.info("Feedback simulato ricevuto")
+# Endpoint Feedback
+@app.post("/feedback")
+def receive_feedback(user_id: str = Query(...), item_id: str = Query(...)):
+    logger.info(f"Feedback ricevuto | user_id={user_id}, item_id={item_id}")
     RECOMMENDATION_CLICKS.inc()
-    return {"status": "ok", "message": "Feedback ricevuto (simulato)"}
+    return {
+        "status": "ok",
+        "message": "Feedback ricevuto correttamente",
+        "data": {"user_id": user_id, "item_id": item_id}
+    }
 
 
 
