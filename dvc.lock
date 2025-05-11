@@ -9,7 +9,7 @@ stages:
       size: 332
     - path: src/data_ingestion.py
       hash: md5
-      md5: f9dfd1129ca385a2c43a6a92684673cb
+      md5: 888b8b4eacffbf27ad9782056a267420
       size: 1187
     outs:
     - path: data/raw/reviews.csv
@@ -129,8 +129,8 @@ stages:
       size: 115914758
     - path: src/SVD/preprocess.py
       hash: md5
-      md5: 29067076fc1d3d9680d18a94afa709f1
-      size: 1332
+      md5: 534cb9c216314951df64475c01e8f386
+      size: 1336
     outs:
     - path: data/processed/SVD/ratings.csv
       hash: md5
@@ -141,21 +141,21 @@ stages:
     deps:
     - path: config/params.yaml
       hash: md5
-      md5: 0516e6b010e027c3216a12bfb6f7d899
-      size: 73
+      md5: 003d2fe5858981d56f3e2e99759cb452
+      size: 74
     - path: data/processed/SVD/ratings.csv
       hash: md5
       md5: 8ddd34c605b6fdb5b3f462b6019331f8
       size: 8118847
     - path: src/SVD/train.py
       hash: md5
-      md5: e552e04488b9cfc9541718fb5a8a6ec6
-      size: 2735
+      md5: a5c49849dd37a412b9cb7baec787a8be
+      size: 4876
     outs:
     - path: models/svd_model.pkl
       hash: md5
-      md5: d0e26b48bd46c895cef1e93b749d17b7
-      size: 9967107
+      md5: 4303a740e39c09d91ceb1898eedcce4d
+      size: 15243507
   tune_SVD:
     cmd: python src/SVD/tune.py
     deps:
@@ -165,10 +165,10 @@ stages:
       size: 8118847
     - path: src/SVD/tune.py
       hash: md5
-      md5: b113b6adab17ca0d2f6746d0a00beabc
-      size: 2473
+      md5: f6a4b0fc561923d3c736662b66916ff4
+      size: 4155
     outs:
     - path: config/params.yaml
       hash: md5
-      md5: 0516e6b010e027c3216a12bfb6f7d899
-      size: 73
+      md5: 003d2fe5858981d56f3e2e99759cb452
+      size: 74

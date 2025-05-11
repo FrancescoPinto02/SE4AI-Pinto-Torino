@@ -1,5 +1,4 @@
 import os
-
 import mlflow
 import pandas as pd
 from dotenv import load_dotenv
@@ -8,46 +7,88 @@ from fastapi.middleware.cors import CORSMiddleware
 from mlflow.tracking import MlflowClient
 from prometheus_client import Counter, Gauge
 from prometheus_fastapi_instrumentator import Instrumentator
+from cachetools import TTLCache
 
-# --- Load environment ---
+from src.log_config import setup_logger
+
+# Configurazione e Inizializzazione
 load_dotenv()
-mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI"))
-mlflow.set_experiment("svd_recommender")
 
+TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
+EXPERIMENT_NAME = "svd_recommender"
 MODEL_NAME = "SVD-Recommender"
 MODEL_ALIAS = "champion"
 
-# --- Load model from MLflow ---
+if not TRACKING_URI:
+    raise RuntimeError("MLFLOW_TRACKING_URI non definito nel file .env")
+
+mlflow.set_tracking_uri(TRACKING_URI)
+mlflow.set_experiment(EXPERIMENT_NAME)
+
+logger = setup_logger()
+logger.info("Avvio applicazione Game Recommender API")
+
+# -------------------------------
+# 📦 Caricamento Modello
+# -------------------------------
+logger.info(f"Caricamento modello '{MODEL_NAME}' con alias '{MODEL_ALIAS}' da MLflow")
 model = mlflow.sklearn.load_model(f"models:/{MODEL_NAME}@{MODEL_ALIAS}")
 
-# --- Load training data artifact from MLflow ---
+# -------------------------------
+# 📂 Caricamento Dataset
+# -------------------------------
 def load_training_data_from_registry(model_name: str, alias: str) -> pd.DataFrame:
+    logger.info("Download dataset di training da MLflow registry")
     client = MlflowClient()
     model_version = client.get_model_version_by_alias(model_name, alias)
-    run_id = model_version.run_id
     path = mlflow.artifacts.download_artifacts(
-        run_id=run_id,
+        run_id=model_version.run_id,
         artifact_path="training_data/ratings.csv"
     )
-    return pd.read_csv(path)
+    df = pd.read_csv(path)
+    logger.info(f"Dataset caricato: {df.shape[0]} righe, {df['itemId'].nunique()} giochi")
+    return df
 
-# Carica il dataset una sola volta all’avvio
 ratings_df = load_training_data_from_registry(MODEL_NAME, MODEL_ALIAS)
-print(f"✅ Dataset caricato: {ratings_df.shape[0]} righe")
 
-# --- FastAPI app ---
-app = FastAPI(title="Game Recommender API")
-instrumentator = Instrumentator().instrument(app).expose(app)
-PREDICTED_SCORE_AVG = Gauge("predicted_score_avg", "Media dei punteggi previsti per una richiesta")
-RECOMMENDATIONS_SENT = Counter("recommendations_total", "Totale raccomandazioni mostrate")
-RECOMMENDATION_CLICKS = Counter("recommendation_clicks_total", "Click su raccomandazioni mostrate")
+# -------------------------------
+# ⭐ Calcolo fallback (popolarità ponderata IMDb-style)
+# -------------------------------
+logger.info("Calcolo fallback ponderato basato su popolarità e qualità")
+C = ratings_df["rating"].mean()
+m = 20
 
-# CORS settings
-origins = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173"
+game_stats = (
+    ratings_df.groupby("itemId")
+    .agg(v=("rating", "count"), R=("rating", "mean"))
+    .reset_index()
+)
+
+game_stats["WR"] = game_stats.apply(
+    lambda x: (x["v"] / (x["v"] + m)) * x["R"] + (m / (x["v"] + m)) * C,
+    axis=1
+)
+
+popular_fallback_games = [
+    {"gameId": str(row["itemId"]), "predicted_score": round(row["WR"], 2), "fallback": True}
+    for _, row in game_stats.sort_values(by="WR", ascending=False).iterrows()
 ]
 
+# -------------------------------
+# 🚀 FastAPI App Setup
+# -------------------------------
+app = FastAPI(title="Game Recommender API")
+
+# Prometheus Metrics
+instrumentator = Instrumentator().instrument(app).expose(app)
+PREDICTED_SCORE_AVG = Gauge("predicted_score_avg", "Media dei punteggi previsti per una richiesta")
+RECOMMENDATIONS_SENT = Counter("recommendations_total", "Totale Items raccomandati")
+RECOMMENDATION_CLICKS = Counter("recommendation_clicks_total", "Click su raccomandazioni mostrate")
+FALLBACK_USERS = Counter("fallback_users_total", "Numero utenti serviti con fallback")
+PREDICTION_REQUEST = Counter("prediction_request", "Numero richieste per raccomandazioni")
+
+# CORS Settings
+origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -56,21 +97,38 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# -------------------------------
+# 🧠 Cache raccomandazioni
+# -------------------------------
+recommendation_cache = TTLCache(maxsize=1000, ttl=600)
+
+# -------------------------------
+# 📡 Endpoint Raccomandazioni
+# -------------------------------
 @app.get("/recommendations/{user_id}")
 def get_recommendations(user_id: str, n: int = 10):
-    print(f"🔍 Richiesta per user_id: {user_id}")
+    logger.info(f"Richiesta raccomandazioni | user_id={user_id}, top={n}")
+    PREDICTION_REQUEST.inc(1)
 
+    cache_key = f"{user_id}_{n}"
+    if cache_key in recommendation_cache:
+        cached_response = recommendation_cache[cache_key]
+        logger.info(f"Cache HIT per user_id={user_id} | Raccomandazioni: {cached_response}")
+        return cached_response
+
+    logger.info(f"Cache MISS per user_id={user_id}")
     user_reviews = ratings_df[ratings_df["userId"] == user_id]
 
     if user_reviews.empty:
-        raise HTTPException(status_code=404, detail="User ID non trovato o senza recensioni")
+        logger.warning(f"Cold start per user_id={user_id} - fallback attivato")
+        FALLBACK_USERS.inc(1)
+        fallback_top_n = popular_fallback_games[:n]
+        logger.info(f"Fallback restituito per user_id={user_id} | Raccomandazioni: {fallback_top_n}")
+        return fallback_top_n
 
     reviewed_game_ids = user_reviews["itemId"].astype(str).unique()
     all_game_ids = ratings_df["itemId"].astype(str).unique()
     to_predict = [gid for gid in all_game_ids if gid not in reviewed_game_ids]
-
-    print(f"📚 Giochi totali nel dataset: {len(all_game_ids)}")
-    print(f"🎯 Giochi da raccomandare: {len(to_predict)}")
 
     predictions = [
         (gid, model.predict(user_id, gid).est)
@@ -79,15 +137,28 @@ def get_recommendations(user_id: str, n: int = 10):
 
     top_n = sorted(predictions, key=lambda x: x[1], reverse=True)[:n]
     if top_n:
-        avg_score = sum([score for _, score in top_n]) / len(top_n)
+        avg_score = sum(score for _, score in top_n) / len(top_n)
         PREDICTED_SCORE_AVG.set(avg_score)
         RECOMMENDATIONS_SENT.inc(n)
-    return [{"gameId": gid, "predicted_score": round(float(score), 2)} for gid, score in top_n]
 
+    response = [
+        {"gameId": gid, "predicted_score": round(float(score), 2), "fallback": False}
+        for gid, score in top_n
+    ]
 
+    recommendation_cache[cache_key] = response
+    logger.info(f"Raccomandazioni inviate per user_id={user_id}: {response}")
+    logger.info(f"Raccomandazioni salvate in cache per user_id={user_id}")
+    return response
+
+# -------------------------------
+# Endpoint Feedback (simulato)
+# -------------------------------
 @app.get("/feedback")
 def receive_feedback():
-    print("📥 Feedback ricevuto")
+    logger.info("Feedback simulato ricevuto")
     RECOMMENDATION_CLICKS.inc()
-
     return {"status": "ok", "message": "Feedback ricevuto (simulato)"}
+
+
+
