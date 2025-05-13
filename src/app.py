@@ -127,6 +127,7 @@ def get_recommendations(user_id: str, n: int = 10):
     if cache_key in recommendation_cache:
         cached_response = recommendation_cache[cache_key]
         logger.info(f"Cache HIT per user_id={user_id} | Raccomandazioni: {cached_response}")
+        RECOMMENDATIONS_SENT.inc(n)
         return cached_response
 
     logger.info(f"Cache MISS per user_id={user_id}")
@@ -137,6 +138,7 @@ def get_recommendations(user_id: str, n: int = 10):
         FALLBACK_USERS.inc(1)
         fallback_top_n = popular_fallback_games[:n]
         logger.info(f"Fallback restituito per user_id={user_id} | Raccomandazioni: {fallback_top_n}")
+        RECOMMENDATIONS_SENT.inc(n)
         return fallback_top_n
 
     reviewed_game_ids = user_reviews["itemId"].astype(str).unique()
@@ -152,7 +154,6 @@ def get_recommendations(user_id: str, n: int = 10):
     if top_n:
         avg_score = sum(score for _, score in top_n) / len(top_n)
         PREDICTED_SCORE_AVG.set(avg_score)
-        RECOMMENDATIONS_SENT.inc(n)
 
     response = [
         {"gameId": gid, "predicted_score": round(float(score), 2), "fallback": False}
@@ -161,6 +162,9 @@ def get_recommendations(user_id: str, n: int = 10):
 
     recommendation_cache[cache_key] = response
     logger.info(f"Raccomandazioni inviate per user_id={user_id}: {response}")
+
+    logger.info(f"Raccomandazioni salvate in cache per user_id={user_id}")
+    RECOMMENDATIONS_SENT.inc(n)
     return response
 
 @app.post("/feedback")
