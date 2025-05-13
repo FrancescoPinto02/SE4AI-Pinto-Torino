@@ -1,3 +1,5 @@
+import socket
+
 import mlflow
 import pandas as pd
 from cachetools import TTLCache
@@ -7,6 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from mlflow.tracking import MlflowClient
 from prometheus_client import Counter, Gauge
 from prometheus_fastapi_instrumentator import Instrumentator
+from py_eureka_client.eureka_client import EurekaClient
+import asyncio
 
 from src.log_config import setup_logger
 
@@ -32,6 +36,7 @@ logger.info(f"Caricamento modello '{MODEL_NAME}' con alias '{MODEL_ALIAS}' da ML
 model = mlflow.sklearn.load_model(f"models:/{MODEL_NAME}@{MODEL_ALIAS}")
 
 # Caricamento Dataset
+
 def load_training_data_from_registry(model_name: str, alias: str) -> pd.DataFrame:
     logger.info("Download dataset di training da MLflow registry")
     client = MlflowClient()
@@ -70,6 +75,38 @@ popular_fallback_games = [
 # FastAPI Setup
 app = FastAPI(title="Game Recommender API")
 
+ip = socket.gethostbyname(socket.gethostname())
+logger.info(f"IP del server: {ip}")
+
+# Registrazione su Eureka
+async def start_eureka_client():
+    try:
+        eureka_client = EurekaClient(
+            eureka_server="http://discovery-server:8761/eureka",
+            app_name="recommendation-service",
+            instance_port=8000,
+            instance_ip=ip,
+            instance_id="recommendation-service",
+            renewal_interval_in_secs=5,
+            duration_in_secs=10,
+            metadata={"version": "1.0.0"},
+        )
+        await eureka_client.start()
+        logger.info("Servizio di raccomandazione registrato su Eureka con successo.")
+        while True:
+            await asyncio.sleep(30)
+    except Exception as e:
+        logger.error(f"Errore durante la registrazione su Eureka: {e}")
+
+@app.on_event("startup")
+async def startup_event():
+    logger.info("Avvio registrazione su Eureka")
+    asyncio.create_task(start_eureka_client())
+
+@app.get("/health")
+async def health_check():
+    return {"status": "UP"}
+
 # Prometheus Metrics
 instrumentator = Instrumentator().instrument(app).expose(app)
 PREDICTED_SCORE_AVG = Gauge("predicted_score_avg", "Media dei punteggi previsti per una richiesta")
@@ -78,20 +115,9 @@ RECOMMENDATION_CLICKS = Counter("recommendation_clicks_total", "Click su raccoma
 FALLBACK_USERS = Counter("fallback_users_total", "Numero utenti serviti con fallback")
 PREDICTION_REQUEST = Counter("prediction_request", "Numero richieste per raccomandazioni")
 
-# CORS Settings
-origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 # Cache Raccomandazioni
 recommendation_cache = TTLCache(maxsize=1000, ttl=600)
 
-# Endpoint Raccomandazioni
 @app.get("/recommendations/{user_id}")
 def get_recommendations(user_id: str, n: int = 10):
     logger.info(f"Richiesta raccomandazioni | user_id={user_id}, top={n}")
@@ -135,10 +161,8 @@ def get_recommendations(user_id: str, n: int = 10):
 
     recommendation_cache[cache_key] = response
     logger.info(f"Raccomandazioni inviate per user_id={user_id}: {response}")
-    logger.info(f"Raccomandazioni salvate in cache per user_id={user_id}")
     return response
 
-# Endpoint Feedback
 @app.post("/feedback")
 def receive_feedback(user_id: str = Query(...), item_id: str = Query(...)):
     logger.info(f"Feedback ricevuto | user_id={user_id}, item_id={item_id}")
@@ -148,6 +172,3 @@ def receive_feedback(user_id: str = Query(...), item_id: str = Query(...)):
         "message": "Feedback ricevuto correttamente",
         "data": {"user_id": user_id, "item_id": item_id}
     }
-
-
-
