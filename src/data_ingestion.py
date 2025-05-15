@@ -4,8 +4,6 @@ import pandas as pd
 from dotenv import load_dotenv
 from pymongo import MongoClient
 
-# TODO: Utilizzare l'API Gateway quando i microservizi saranno pronti
-
 def build_mongo_uri():
     load_dotenv()
     user = os.getenv("MONGO_USER")
