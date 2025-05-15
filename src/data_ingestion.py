@@ -4,6 +4,7 @@ import pandas as pd
 from dotenv import load_dotenv
 from pymongo import MongoClient
 
+
 def build_mongo_uri():
     load_dotenv()
     user = os.getenv("MONGO_USER")
