@@ -169,16 +169,12 @@ stages:
       size: 7560762
     - path: src/SVD/train.py
       hash: md5
-      md5: bad593d5fee8bf47bf086a3fe319a68a
-      size: 4675
-    - path: src/utils/log_config.py
-      hash: md5
-      md5: 1c0c4b67188e051dbb2cb7927a18e8a9
-      size: 943
+      md5: 77e522adb4fbb777600915a00bb0f8fb
+      size: 4691
     outs:
     - path: models/svd_model.pkl
       hash: md5
-      md5: 186be404bda43e5a6ada646a7d786993
+      md5: dcf8e73e8a2f31a2f5ff356a09791d8a
       size: 15236147
   tune_SVD:
     cmd: python src/SVD/tune.py
@@ -193,12 +189,8 @@ stages:
       size: 7560762
     - path: src/SVD/tune.py
       hash: md5
-      md5: fc604880c235da1510c996e07e2b593e
-      size: 4291
-    - path: src/utils/log_config.py
-      hash: md5
-      md5: 1c0c4b67188e051dbb2cb7927a18e8a9
-      size: 943
+      md5: e390031ff376bd89b66c9935dc510eb6
+      size: 4293
     outs:
     - path: config/SVD/params.yaml
       hash: md5
@@ -217,12 +209,8 @@ stages:
       size: 115914758
     - path: src/SVD/preprocess.py
       hash: md5
-      md5: c12151eeee68fd48ab11dfdaaadbdf8b
+      md5: 474aee212a446415e86a7f4e4deb45dc
       size: 2996
-    - path: src/utils/log_config.py
-      hash: md5
-      md5: 1c0c4b67188e051dbb2cb7927a18e8a9
-      size: 943
     outs:
     - path: data/processed/SVD/test.csv
       hash: md5

@@ -5,7 +5,6 @@ stages:
     - .env
     - src/data_ingestion.py
     - config/ingestion.yaml
-    - src/utils/log_config.py
     outs:
     - data/raw/reviews.csv
     - data/raw/games.csv
@@ -14,7 +13,6 @@ stages:
     deps:
     - data/raw/reviews.csv
     - src/SVD/preprocess.py
-    - src/utils/log_config.py
     - config/SVD/preprocess.yaml
     outs:
     - data/processed/SVD/train.csv
@@ -26,7 +24,6 @@ stages:
     - data/processed/SVD/train.csv
     - data/processed/SVD/test.csv
     - src/SVD/train.py
-    - src/utils/log_config.py
     - config/SVD/train.yaml
     outs:
     - models/svd_model.pkl
@@ -35,7 +32,6 @@ stages:
     deps:
     - data/processed/SVD/train.csv
     - src/SVD/tune.py
-    - src/utils/log_config.py
     - config/SVD/tune.yaml
     outs:
     - config/SVD/params.yaml
