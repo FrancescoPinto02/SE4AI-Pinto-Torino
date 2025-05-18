@@ -1,5 +1,6 @@
 import itertools
 import os
+import sys
 from collections import defaultdict
 
 import mlflow
@@ -10,30 +11,26 @@ from dotenv import load_dotenv
 from surprise import SVD, Dataset, Reader
 from surprise.model_selection import KFold
 
-# Constants for evaluation
-DEFAULT_CV = 10
-DEFAULT_K = 10
-DEFAULT_THRESHOLD = 3.5
+# Path hack per importare log_config
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+from src.utils.log_config import setup_logger
 
-# Load the dataset
-def load_data(path):
-    df = pd.read_csv(path)
-    reader = Reader(rating_scale=(0, 5))
-    return Dataset.load_from_df(df[["userId", "itemId", "rating"]], reader)
+logger = setup_logger("tune")
+load_dotenv()
 
-# Load the parameters from config file
-def load_param_grid(path="config/grid_search.yaml"):
+
+def load_config(path="config/SVD/tune.yaml"):
     with open(path, "r") as f:
-        config = yaml.safe_load(f)
-    return config.get("param_grid", {})
+        return yaml.safe_load(f)
 
-# Save the Best Parameters inside the config file
-def update_best_params(best_params, path="config/params.yaml"):
+
+def save_best_params(best_params, path="config/SVD/params.yaml"):
     with open(path, "w") as f:
         yaml.dump({"svd": best_params}, f)
+    logger.info(f"Parametri migliori salvati in {path}")
 
-# Calculate the Precision@K and the Recall@K
-def precision_recall_at_k(predictions, k=DEFAULT_K, threshold=DEFAULT_THRESHOLD):
+
+def precision_recall_at_k(predictions, k=10, threshold=3.5):
     user_est_true = defaultdict(list)
     for uid, _, true_r, est, _ in predictions:
         user_est_true[uid].append((est, true_r))
@@ -51,10 +48,10 @@ def precision_recall_at_k(predictions, k=DEFAULT_K, threshold=DEFAULT_THRESHOLD)
     return precisions, recalls
 
 
-def evaluate_params(params, data, n_splits=DEFAULT_CV, k=DEFAULT_K, threshold=DEFAULT_THRESHOLD):
+def evaluate_params(params, data, cv=5, k=10, threshold=3.5):
+    kf = KFold(n_splits=cv)
     fold_precisions = []
     fold_recalls = []
-    kf = KFold(n_splits=n_splits)
     for trainset, testset in kf.split(data):
         algo = SVD(**params)
         algo.fit(trainset)
@@ -66,47 +63,61 @@ def evaluate_params(params, data, n_splits=DEFAULT_CV, k=DEFAULT_K, threshold=DE
 
 
 def main():
-    load_dotenv()
+    logger.info("Avvio tuning iperparametri SVD con MLflow")
+    config = load_config()
+
+    train_path = config["train_path"]
+    cv = config.get("cv", 5)
+    k = config.get("k", 10)
+    threshold = config.get("threshold", 3.5)
+    param_grid = config.get("param_grid", {})
+
+    df = pd.read_csv(train_path)
+    reader = Reader(rating_scale=(0, 5))
+    data = Dataset.load_from_df(df[["userId", "itemId", "rating"]], reader)
+
+    # Imposta tracking URI ed esperimento
     mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI"))
     mlflow.set_experiment("svd_recommender")
 
-    data = load_data("data/processed/SVD/ratings.csv")
-    param_grid = load_param_grid()
-
-    keys = list(param_grid.keys())
     combinations = list(itertools.product(*param_grid.values()))
-    print(f"🔍 Testing {len(combinations)} combinations...")
+    keys = list(param_grid.keys())
+
+    logger.info(f"Totale combinazioni da testare: {len(combinations)}")
 
     best_score = 0
     best_params = {}
     best_run_id = None
 
-    for combo in combinations:
+    for i, combo in enumerate(combinations, 1):
         params = dict(zip(keys, combo))
+        logger.info(f"[{i}/{len(combinations)}] Test parametri: {params}")
+
         with mlflow.start_run() as run:
             run_id = run.info.run_id
-            avg_precision, avg_recall = evaluate_params(params, data)
+            avg_precision, avg_recall = evaluate_params(params, data, cv=cv, k=k, threshold=threshold)
 
             mlflow.log_params(params)
-            mlflow.log_metric(f"Precision{DEFAULT_K}", avg_precision)
-            mlflow.log_metric(f"Recall{DEFAULT_K}", avg_recall)
+            mlflow.log_metric(f"Precision{k}", avg_precision)
+            mlflow.log_metric(f"Recall{k}", avg_recall)
 
-            print(f"Params: {params} → Precision@{DEFAULT_K}: {avg_precision:.4f}, Recall@{DEFAULT_K}: {avg_recall:.4f}")
+            logger.info(f"Precision@{k}: {avg_precision:.4f}, Recall@{k}: {avg_recall:.4f}")
 
             if avg_precision > best_score:
                 best_score = avg_precision
                 best_params = params
                 best_run_id = run_id
 
-    print(f"\n🏆 Best params: {best_params} → Precision@{DEFAULT_K}: {best_score:.4f}")
-    update_best_params(best_params)
+    save_best_params(best_params)
+    logger.info(f"Parametri migliori: {best_params} → Precision@{k}: {best_score:.4f}")
 
-    # Tag the best run
     if best_run_id:
         with mlflow.start_run(run_id=best_run_id):
             mlflow.set_tag("label", "Best")
             mlflow.set_tag("best_precision", str(round(best_score, 4)))
-        print(f"🏷️ Run '{best_run_id}' etichettata con label=Best")
+            logger.info(f"Run '{best_run_id}' etichettata come Best")
+
+    logger.info("Tuning completato con successo")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,7 @@
+input_path: data/raw/reviews.csv
+output_train_path: data/processed/SVD/train.csv
+output_test_path: data/processed/SVD/test.csv
+rating_column: score
+min_rating: 0
+max_rating: 5
+winsorize_percentiles: [5, 95]

@@ -1,0 +1,7 @@
+train_path: data/processed/SVD/train.csv
+test_path: data/processed/SVD/test.csv
+model_name: SVD-Recommender
+model_alias: champion
+experiment_name: svd_recommender
+k: 10
+threshold: 3.5

@@ -4,27 +4,38 @@ stages:
     deps:
     - .env
     - src/data_ingestion.py
+    - config/ingestion.yaml
+    - src/utils/log_config.py
     outs:
     - data/raw/reviews.csv
-  preprocess_data_SVD:
+    - data/raw/games.csv
+  preprocess_SVD:
     cmd: python src/SVD/preprocess.py
     deps:
     - data/raw/reviews.csv
     - src/SVD/preprocess.py
+    - src/utils/log_config.py
+    - config/SVD/preprocess.yaml
     outs:
-    - data/processed/SVD/ratings.csv
+    - data/processed/SVD/train.csv
+    - data/processed/SVD/test.csv
   train_SVD:
     cmd: python src/SVD/train.py
     deps:
-    - config/params.yaml
-    - data/processed/SVD/ratings.csv
+    - config/SVD/params.yaml
+    - data/processed/SVD/train.csv
+    - data/processed/SVD/test.csv
     - src/SVD/train.py
+    - src/utils/log_config.py
+    - config/SVD/train.yaml
     outs:
     - models/svd_model.pkl
   tune_SVD:
     cmd: python src/SVD/tune.py
     deps:
-    - data/processed/SVD/ratings.csv
+    - data/processed/SVD/train.csv
     - src/SVD/tune.py
+    - src/utils/log_config.py
+    - config/SVD/tune.yaml
     outs:
-    - config/params.yaml
+    - config/SVD/params.yaml

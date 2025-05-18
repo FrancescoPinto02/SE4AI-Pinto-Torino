@@ -1,0 +1,12 @@
+sources:
+  - db_key: reviews_db
+    db_name: test
+    collections:
+      - name: reviews
+        output: data/raw/reviews.csv
+
+  - db_key: games_db
+    db_name: games_db
+    collections:
+      - name: games
+        output: data/raw/games.csv

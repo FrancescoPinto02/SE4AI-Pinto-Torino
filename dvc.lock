@@ -5,16 +5,28 @@ stages:
     deps:
     - path: .env
       hash: md5
-      md5: 0c6167a40fe9e3ed8f87c6b863893a74
-      size: 332
+      md5: 2e0fd11e8a741623c932e9fd6ca6ae4b
+      size: 539
+    - path: config/ingestion.yaml
+      hash: md5
+      md5: 786de7b904c7ba3945f2d09b71f166c0
+      size: 252
     - path: src/data_ingestion.py
       hash: md5
-      md5: 888b8b4eacffbf27ad9782056a267420
-      size: 1187
+      md5: 3bce48e72a7967fdb8f2525d50bb3a14
+      size: 2696
+    - path: src/utils/log_config.py
+      hash: md5
+      md5: 1c0c4b67188e051dbb2cb7927a18e8a9
+      size: 943
     outs:
+    - path: data/raw/games.csv
+      hash: md5
+      md5: 7fc2f550c8d248e25c7b05263ef5b74b
+      size: 7279124
     - path: data/raw/reviews.csv
       hash: md5
-      md5: 7cd0cfaf0469f0d2455e81eb72d260c7
+      md5: 7184022475d653e9961c1e82d6e95e30
       size: 115914758
   preprocess_lightFM:
     cmd: python src/data/lightfm/preprocess_lightfm.py
@@ -139,36 +151,84 @@ stages:
   train_SVD:
     cmd: python src/SVD/train.py
     deps:
-    - path: config/params.yaml
+    - path: config/SVD/params.yaml
       hash: md5
-      md5: 003d2fe5858981d56f3e2e99759cb452
+      md5: db9c82fd2d6491c3dc4a3ae75892c0d9
       size: 74
-    - path: data/processed/SVD/ratings.csv
+    - path: config/SVD/train.yaml
       hash: md5
-      md5: 8ddd34c605b6fdb5b3f462b6019331f8
-      size: 8118847
+      md5: f2b216979e3bf9632f647a4acdb2cb94
+      size: 189
+    - path: data/processed/SVD/test.csv
+      hash: md5
+      md5: 6533b139f8f9fcea9e06b66ee9f63664
+      size: 558107
+    - path: data/processed/SVD/train.csv
+      hash: md5
+      md5: 55b3ea58ec5bea53782e4a7e4b009c11
+      size: 7560762
     - path: src/SVD/train.py
       hash: md5
-      md5: a5c49849dd37a412b9cb7baec787a8be
-      size: 4876
+      md5: bad593d5fee8bf47bf086a3fe319a68a
+      size: 4675
+    - path: src/utils/log_config.py
+      hash: md5
+      md5: 1c0c4b67188e051dbb2cb7927a18e8a9
+      size: 943
     outs:
     - path: models/svd_model.pkl
       hash: md5
-      md5: 4303a740e39c09d91ceb1898eedcce4d
-      size: 15243507
+      md5: 186be404bda43e5a6ada646a7d786993
+      size: 15236147
   tune_SVD:
     cmd: python src/SVD/tune.py
     deps:
-    - path: data/processed/SVD/ratings.csv
+    - path: config/SVD/tune.yaml
       hash: md5
-      md5: 8ddd34c605b6fdb5b3f462b6019331f8
-      size: 8118847
+      md5: d1781604bfc3405ceedf21f4abc1d43a
+      size: 181
+    - path: data/processed/SVD/train.csv
+      hash: md5
+      md5: 55b3ea58ec5bea53782e4a7e4b009c11
+      size: 7560762
     - path: src/SVD/tune.py
       hash: md5
-      md5: f6a4b0fc561923d3c736662b66916ff4
-      size: 4155
-    outs:
-    - path: config/params.yaml
+      md5: fc604880c235da1510c996e07e2b593e
+      size: 4291
+    - path: src/utils/log_config.py
       hash: md5
-      md5: 003d2fe5858981d56f3e2e99759cb452
+      md5: 1c0c4b67188e051dbb2cb7927a18e8a9
+      size: 943
+    outs:
+    - path: config/SVD/params.yaml
+      hash: md5
+      md5: db9c82fd2d6491c3dc4a3ae75892c0d9
       size: 74
+  preprocess_SVD:
+    cmd: python src/SVD/preprocess.py
+    deps:
+    - path: config/SVD/preprocess.yaml
+      hash: md5
+      md5: a11aa64170700539b3d6db7cbb8dda20
+      size: 212
+    - path: data/raw/reviews.csv
+      hash: md5
+      md5: 7184022475d653e9961c1e82d6e95e30
+      size: 115914758
+    - path: src/SVD/preprocess.py
+      hash: md5
+      md5: c12151eeee68fd48ab11dfdaaadbdf8b
+      size: 2996
+    - path: src/utils/log_config.py
+      hash: md5
+      md5: 1c0c4b67188e051dbb2cb7927a18e8a9
+      size: 943
+    outs:
+    - path: data/processed/SVD/test.csv
+      hash: md5
+      md5: 6533b139f8f9fcea9e06b66ee9f63664
+      size: 558107
+    - path: data/processed/SVD/train.csv
+      hash: md5
+      md5: 55b3ea58ec5bea53782e4a7e4b009c11
+      size: 7560762

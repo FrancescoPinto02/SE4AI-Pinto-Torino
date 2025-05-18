@@ -11,7 +11,7 @@ from prometheus_client import Counter, Gauge
 from prometheus_fastapi_instrumentator import Instrumentator
 from py_eureka_client.eureka_client import EurekaClient
 
-from src.log_config import setup_logger
+from src.utils.log_config import setup_logger
 
 # Configurazione e Inizializzazione
 load_dotenv()
@@ -42,7 +42,7 @@ def load_training_data_from_registry(model_name: str, alias: str) -> pd.DataFram
     model_version = client.get_model_version_by_alias(model_name, alias)
     path = mlflow.artifacts.download_artifacts(
         run_id=model_version.run_id,
-        artifact_path="training_data/ratings.csv"
+        artifact_path="full_data/full_train.csv"
     )
     df = pd.read_csv(path)
     logger.info(f"Dataset caricato: {df.shape[0]} righe, {df['itemId'].nunique()} giochi")

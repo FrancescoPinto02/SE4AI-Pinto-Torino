@@ -1,4 +1,5 @@
 import os
+import sys
 from collections import defaultdict
 
 import joblib
@@ -9,127 +10,125 @@ import yaml
 from dotenv import load_dotenv
 from mlflow.tracking import MlflowClient
 from surprise import SVD, Dataset, Reader
-from surprise.model_selection import KFold
 
-REGISTERED_MODEL_NAME = "SVD-Recommender"
-MODEL_ALIAS = "champion"
+# Setup import per il logger
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+from src.utils.log_config import setup_logger
 
-
-def load_data(path):
-    df = pd.read_csv(path)
-    reader = Reader(rating_scale=(0, 5))
-    return df, Dataset.load_from_df(df[["userId", "itemId", "rating"]], reader)
+logger = setup_logger("train")
+load_dotenv()
 
 
-def load_params(path="config/params.yaml"):
+def load_config(path="config/SVD/train.yaml"):
     with open(path, "r") as f:
-        params = yaml.safe_load(f)
-    # Expected keys: n_splits, k, threshold, plus SVD hyperparameters
-    return params.get("svd", {})
+        return yaml.safe_load(f)
 
 
-def precision_recall_at_k(predictions, k=10, threshold=3.5):
+def load_best_params(path="config/SVD/params.yaml"):
+    with open(path, "r") as f:
+        return yaml.safe_load(f).get("svd", {})
+
+
+def precision_at_k(predictions, k=10, threshold=3.5):
     user_est_true = defaultdict(list)
     for uid, _, true_r, est, _ in predictions:
         user_est_true[uid].append((est, true_r))
 
     precisions = {}
-    recalls = {}
     for uid, ratings in user_est_true.items():
-        # Sort by estimated rating descending
         ratings.sort(key=lambda x: x[0], reverse=True)
+        n_rec_k = sum(est >= threshold for est, _ in ratings[:k])
+        n_rel_and_rec_k = sum((true_r >= threshold and est >= threshold)
+                              for est, true_r in ratings[:k])
+        precisions[uid] = n_rel_and_rec_k / n_rec_k if n_rec_k else 0
 
-        # Relevant items
-        n_rel = sum((true_r >= threshold) for (_, true_r) in ratings)
-        # Recommended in top k
-        n_rec_k = sum((est >= threshold) for (est, _) in ratings[:k])
-        # Relevant and recommended
-        n_rel_and_rec_k = sum(((true_r >= threshold) and (est >= threshold))
-                              for (est, true_r) in ratings[:k])
+    return np.mean(list(precisions.values()))
 
-        precisions[uid] = n_rel_and_rec_k / n_rec_k if n_rec_k != 0 else 0
-        recalls[uid] = n_rel_and_rec_k / n_rel if n_rel != 0 else 0
 
-    return precisions, recalls
+def prepare_dataset(df):
+    reader = Reader(rating_scale=(0, 5))
+    return Dataset.load_from_df(df[["userId", "itemId", "rating"]], reader)
 
 
 def main():
-    load_dotenv()
+    logger.info("Avvio training del modello SVD")
+    config = load_config()
+    best_params = load_best_params()
+
+    train_path = config["train_path"]
+    test_path = config["test_path"]
+    k = config.get("k", 10)
+    threshold = config.get("threshold", 3.5)
+    model_name = config["model_name"]
+    model_alias = config["model_alias"]
+    experiment_name = config["experiment_name"]
+
+    logger.info(f"Caricamento train set da: {train_path}")
+    df_train = pd.read_csv(train_path)
+    logger.info(f"Caricamento test set da: {test_path}")
+    df_test = pd.read_csv(test_path)
+
+    train_data = prepare_dataset(df_train)
+
     mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI"))
-    mlflow.set_experiment("SVD-Recommender")
+    mlflow.set_experiment(experiment_name)
 
-    # DagsHub auth
-    os.environ["MLFLOW_TRACKING_USERNAME"] = os.getenv("MLFLOW_TRACKING_USERNAME")
-    os.environ["MLFLOW_TRACKING_PASSWORD"] = os.getenv("MLFLOW_TRACKING_PASSWORD")
+    # Allenamento sul training set
+    logger.info(f"Addestramento su train set con parametri: {best_params}")
+    algo = SVD(**best_params)
+    trainset = train_data.build_full_trainset()
+    algo.fit(trainset)
 
-    params = load_params()
-    n_splits = params.get('n_splits', 5)
-    k = params.get('k', 10)
-    threshold = params.get('threshold', 3.5)
-    # Remove non-SVD keys
-    svd_kwargs = {key: params[key] for key in params if key not in ('n_splits', 'k', 'threshold')}
+    # Valutazione su test set
+    logger.info("Valutazione su test set (Leave-One-Out)")
+    testset = list(df_test[["userId", "itemId", "rating"]].itertuples(index=False, name=None))
+    predictions = algo.test(testset)
+    precision = precision_at_k(predictions, k=k, threshold=threshold)
 
-    with mlflow.start_run() as run: # noqa: F841
-        # Cross-validation custom for Precision@k and Recall@k
-        raw_df, data = load_data("data/processed/SVD/ratings.csv")
-        kf = KFold(n_splits=n_splits)
-        fold_precisions = []
-        fold_recalls = []
-        for trainset, testset in kf.split(data):
-            algo = SVD(**svd_kwargs)
-            algo.fit(trainset)
-            predictions = algo.test(testset)
-            precisions, recalls = precision_recall_at_k(predictions, k=k, threshold=threshold)
-            fold_precisions.append(np.mean(list(precisions.values())))
-            fold_recalls.append(np.mean(list(recalls.values())))
+    logger.info(f"Precision@{k} = {precision:.4f}")
 
-        avg_precision = np.mean(fold_precisions)
-        avg_recall = np.mean(fold_recalls)
+    # Riaddestramento sul dataset completo
+    logger.info("Riaddestramento su train + test")
+    full_df = pd.concat([df_train, df_test])
+    full_data = prepare_dataset(full_df)
+    final_trainset = full_data.build_full_trainset()
+    final_model = SVD(**best_params)
+    final_model.fit(final_trainset)
 
-        # Log metrics and params
-        mlflow.log_metric(f"Precision{k}", avg_precision)
-        mlflow.log_metric(f"Recall{k}", avg_recall)
-        mlflow.log_params(params)
+    # Salvataggio modello
+    os.makedirs("models", exist_ok=True)
+    model_path = "models/svd_model.pkl"
+    joblib.dump(final_model, model_path)
+    logger.info(f"Modello salvato in {model_path}")
 
-        # Final training on full dataset
-        trainset = data.build_full_trainset()
-        final_model = SVD(**svd_kwargs)
-        final_model.fit(trainset)
+    # Log su MLflow
+    with mlflow.start_run() as run:  # noqa: F841
+        mlflow.log_params(best_params)
+        mlflow.log_metric(f"Precision{k}", precision)
 
-        # Save locally
-        os.makedirs("models", exist_ok=True)
-        joblib.dump(final_model, "models/svd_model.pkl")
+        mlflow.log_artifact("config/SVD/train.yaml")
+        mlflow.log_artifact("config/SVD/params.yaml")
+        mlflow.log_artifact(model_path)
+        mlflow.log_artifact(test_path, artifact_path="test_data")
+        mlflow.log_artifact(train_path, artifact_path="train_data")
 
-        # Log model to MLflow
         mlflow.sklearn.log_model(
             sk_model=final_model,
             artifact_path="svd_model",
-            registered_model_name=REGISTERED_MODEL_NAME
+            registered_model_name=model_name
         )
 
-        mlflow.log_artifact("data/processed/SVD/ratings.csv", artifact_path="training_data")
-        print("✅ Modello loggato su MLflow con Precision@k e Recall@k")
+        full_path = "data/processed/SVD/full_train.csv"
+        full_df.to_csv(full_path, index=False)
+        mlflow.log_artifact(full_path, artifact_path="full_data")
 
-        # Set alias and tags
         client = MlflowClient()
-        latest_version = client.get_latest_versions(REGISTERED_MODEL_NAME)[-1].version
+        latest_version = client.get_latest_versions(model_name)[-1].version
+        client.set_registered_model_alias(model_name, model_alias, latest_version)
+        client.set_model_version_tag(model_name, latest_version, "avg_precision", str(round(precision, 4)))
 
-        client.set_registered_model_alias(REGISTERED_MODEL_NAME, MODEL_ALIAS, latest_version)
-        client.set_model_version_tag(
-            name=REGISTERED_MODEL_NAME,
-            version=latest_version,
-            key="avg_precision",
-            value=str(round(avg_precision, 4))
-        )
-        client.set_model_version_tag(
-            name=REGISTERED_MODEL_NAME,
-            version=latest_version,
-            key="avg_recall",
-            value=str(round(avg_recall, 4))
-        )
-
-        print(f"🏷️ Alias '{MODEL_ALIAS}' assegnato alla versione {latest_version}")
-        print("🎯 Modello pronto per il deployment")
+        logger.info(f"Alias '{model_alias}' assegnato alla versione {latest_version}")
+        logger.info("Modello loggato su MLflow con successo")
 
 
 if __name__ == "__main__":
